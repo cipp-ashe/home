@@ -59,8 +59,8 @@ The AI uses a physics-based approach to make jump decisions:
 
 ### Performance Characteristics
 
-- **Frame rate**: Runs at game's native frame rate (~60fps)
-- **Processing time**: AI decision completes in < 1ms per frame
+- **Frame rate**: Runs at game's native frame rate (varies by hardware)
+- **Processing time**: AI decision completes within single frame
 - **Memory usage**: Minimal - only stores last jump time and constants
 - **Jump frequency**: Maximum 5 jumps per second (200ms interval)
 
