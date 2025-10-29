@@ -28,16 +28,20 @@ class AIPlayer:
         Returns:
             bool: True if Mona should jump, False otherwise
         """
-        if mona.is_dead():
+        try:
+            if mona.is_dead():
+                return False
+            
+            # Don't jump too frequently
+            if ticks - self.last_jump_time < self.min_jump_interval:
+                return False
+            
+            # Get Mona's current position and velocity
+            mona_x, mona_y = mona.pos
+            mona_velocity = mona.velocity
+        except Exception:
+            # If there's any issue reading mona's state, don't jump
             return False
-        
-        # Don't jump too frequently
-        if ticks - self.last_jump_time < self.min_jump_interval:
-            return False
-        
-        # Get Mona's current position and velocity
-        mona_x, mona_y = mona.pos
-        mona_velocity = mona.velocity
         
         # Find the next obstacle in front of Mona
         next_obstacle = self._get_next_obstacle(mona_x)

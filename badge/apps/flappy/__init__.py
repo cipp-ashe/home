@@ -110,14 +110,18 @@ def play():
     global state
 
     # Handle input - either AI or human player
-    if not mona.is_dead():
-        if demo_mode and ai_player:
-            # AI makes the decision
-            if ai_player.should_jump(mona, io.ticks):
+    try:
+        if not mona.is_dead():
+            if demo_mode and ai_player:
+                # AI makes the decision
+                if ai_player.should_jump(mona, io.ticks):
+                    mona.jump()
+            elif io.BUTTON_A in io.pressed:
+                # Human player input
                 mona.jump()
-        elif io.BUTTON_A in io.pressed:
-            # Human player input
-            mona.jump()
+    except Exception:
+        # If there's an error in AI decision making, just continue
+        pass
 
     # update player and check for collision
     mona.update()
@@ -155,10 +159,14 @@ def play():
 def game_over():
     global state, restart_delay
 
-    # Save score to leaderboard
-    if mona and mona.score > 0:
-        player_type = "DEMO" if demo_mode else "HUMAN"
-        Leaderboard.save_score(mona.score, player_type)
+    # Save score to leaderboard (only once per game over)
+    if mona and mona.score >= 0 and restart_delay is None:
+        try:
+            player_type = "DEMO" if demo_mode else "HUMAN"
+            Leaderboard.save_score(mona.score, player_type)
+        except Exception:
+            # If saving fails, continue without crashing
+            pass
 
     # game over caption
     screen.font = large_font
@@ -168,10 +176,14 @@ def game_over():
     screen.font = small_font
     center_text(f"Final score: {mona.score}", 40)
     
-    # Show high score
-    high_score = Leaderboard.get_high_score()
-    if high_score > 0:
-        center_text(f"High score: {high_score}", 52)
+    # Show high score (safely)
+    try:
+        high_score = Leaderboard.get_high_score()
+        if high_score > 0:
+            center_text(f"High score: {high_score}", 52)
+    except Exception:
+        # If reading leaderboard fails, just don't show high score
+        pass
 
     # Handle restart based on mode
     if demo_mode:
