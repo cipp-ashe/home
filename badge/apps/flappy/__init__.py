@@ -7,6 +7,8 @@ os.chdir("/system/apps/flappy")
 from badgeware import screen, Image, PixelFont, SpriteSheet, io, brushes, shapes, run
 from mona import Mona
 from obstacle import Obstacle
+from ai_player import AIPlayer
+from leaderboard import Leaderboard
 
 background = Image.load("assets/background.png")
 grass = Image.load("assets/grass.png")
@@ -24,6 +26,9 @@ class GameState:
 
 
 state = GameState.INTRO
+demo_mode = True  # Start in demo mode by default
+ai_player = None
+restart_delay = None  # Timestamp for when to restart in demo mode
 
 
 def update():
@@ -43,24 +48,59 @@ def update():
 # tell the player how to start the game
 
 
+intro_start_time = None
+
 def intro():
-    global state, mona
+    global state, mona, demo_mode, ai_player, intro_start_time
+
+    # Track when we entered intro state
+    if intro_start_time is None:
+        intro_start_time = io.ticks
 
     # draw title
     screen.font = large_font
     center_text("FLAPPY MONA", 38)
 
-    # blink button message
-    if int(io.ticks / 500) % 2:
+    # Show demo mode indicator
+    if demo_mode:
         screen.font = small_font
-        center_text("Press A to start", 70)
+        center_text("DEMO MODE", 55)
+        # Auto-start after a brief pause
+        time_in_intro = io.ticks - intro_start_time
+        if time_in_intro > 1500:  # Wait 1.5 seconds before starting
+            intro_start_time = None
+            start_game()
+    else:
+        # blink button message for manual mode
+        if int(io.ticks / 500) % 2:
+            screen.font = small_font
+            center_text("Press A to start", 70)
 
-    if io.BUTTON_A in io.pressed:
-        # reset game state
-        state = GameState.PLAYING
-        Obstacle.obstacles = []
-        Obstacle.next_spawn_time = io.ticks + 500
-        mona = Mona()
+        if io.BUTTON_A in io.pressed:
+            intro_start_time = None
+            start_game()
+
+    # Allow toggling demo mode with button C
+    if io.BUTTON_C in io.pressed:
+        demo_mode = not demo_mode
+        intro_start_time = None  # Reset timer when toggling modes
+
+
+def start_game():
+    """Initialize game state for a new game."""
+    global state, mona, ai_player
+    
+    # reset game state
+    state = GameState.PLAYING
+    Obstacle.obstacles = []
+    Obstacle.next_spawn_time = io.ticks + 500
+    mona = Mona()
+    
+    # Initialize AI player if in demo mode
+    if demo_mode:
+        ai_player = AIPlayer()
+    else:
+        ai_player = None
 
 # handle the main game loop and user input. each tick we'll update the game
 # state (read button input, move mona, create new obstacles, etc..) then
@@ -70,9 +110,19 @@ def intro():
 def play():
     global state
 
-    # if the user has pressed A then make mona jump for her life!
-    if not mona.is_dead() and io.BUTTON_A in io.pressed:
-        mona.jump()
+    # Handle input - either AI or human player
+    try:
+        if not mona.is_dead():
+            if demo_mode and ai_player:
+                # AI makes the decision
+                if ai_player.should_jump(mona, io.ticks):
+                    mona.jump()
+            elif io.BUTTON_A in io.pressed:
+                # Human player input
+                mona.jump()
+    except Exception:
+        # If there's an error in AI decision making, just continue
+        pass
 
     # update player and check for collision
     mona.update()
@@ -93,6 +143,10 @@ def play():
     # show the player their current score
     screen.font = small_font
     shadow_text(f"Score: {mona.score}", 3, 0)
+    
+    # Show demo mode indicator during gameplay
+    if demo_mode:
+        shadow_text("DEMO", 3, 12)
 
     # has mona died this frame? if so it's... GAME OVER
     if mona.is_dead():
@@ -104,7 +158,16 @@ def play():
 
 
 def game_over():
-    global state
+    global state, restart_delay, intro_start_time
+
+    # Save score to leaderboard (only once per game over)
+    if mona and mona.score >= 0 and restart_delay is None:
+        try:
+            player_type = "DEMO" if demo_mode else "HUMAN"
+            Leaderboard.save_score(mona.score, player_type)
+        except Exception:
+            # If saving fails, continue without crashing
+            pass
 
     # game over caption
     screen.font = large_font
@@ -113,15 +176,41 @@ def game_over():
     # players final score
     screen.font = small_font
     center_text(f"Final score: {mona.score}", 40)
+    
+    # Show high score (safely)
+    try:
+        high_score = Leaderboard.get_high_score()
+        if high_score > 0:
+            center_text(f"High score: {high_score}", 52)
+    except Exception:
+        # If reading leaderboard fails, just don't show high score
+        pass
 
-    # flash press button message
-    if int(io.ticks / 500) % 2:
-        screen.brush = brushes.color(255, 255, 255)
-        center_text("Press A to restart", 70)
+    # Handle restart based on mode
+    if demo_mode:
+        # Auto-restart in demo mode after a delay
+        if restart_delay is None:
+            restart_delay = io.ticks + 2000  # 2 second delay
+        
+        # Show countdown
+        time_left = (restart_delay - io.ticks) / 1000
+        if time_left > 0:
+            center_text(f"Restarting in {int(time_left + 1)}...", 70)
+        
+        if io.ticks >= restart_delay:
+            restart_delay = None
+            intro_start_time = None
+            state = GameState.INTRO
+    else:
+        # Manual restart for human player
+        if int(io.ticks / 500) % 2:
+            screen.brush = brushes.color(255, 255, 255)
+            center_text("Press A to restart", 70)
 
-    if io.BUTTON_A in io.pressed:
-        # return game to intro state
-        state = GameState.INTRO
+        if io.BUTTON_A in io.pressed:
+            # return game to intro state
+            intro_start_time = None
+            state = GameState.INTRO
 
 
 # draw the scrolling background with parallax layers
