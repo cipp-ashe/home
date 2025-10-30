@@ -83,6 +83,7 @@ def intro():
     # Allow toggling demo mode with button C
     if io.BUTTON_C in io.pressed:
         demo_mode = not demo_mode
+        intro_start_time = None  # Reset timer when toggling modes
 
 
 def start_game():
@@ -157,7 +158,7 @@ def play():
 
 
 def game_over():
-    global state, restart_delay
+    global state, restart_delay, intro_start_time
 
     # Save score to leaderboard (only once per game over)
     if mona and mona.score >= 0 and restart_delay is None:
@@ -198,6 +199,7 @@ def game_over():
         
         if io.ticks >= restart_delay:
             restart_delay = None
+            intro_start_time = None
             state = GameState.INTRO
     else:
         # Manual restart for human player
@@ -207,6 +209,7 @@ def game_over():
 
         if io.BUTTON_A in io.pressed:
             # return game to intro state
+            intro_start_time = None
             state = GameState.INTRO
 
 
